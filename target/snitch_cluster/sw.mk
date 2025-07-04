@@ -64,6 +64,7 @@ SNRT_APPS += sw/apps/dnn/layernorm
 SNRT_APPS += sw/apps/dnn/maxpool
 SNRT_APPS += sw/apps/dnn/softmax
 SNRT_APPS += sw/apps/dnn/flashattention_2
+SNRT_APPS += sw/apps/dnn/mha ############### jiayi ###############
 SNRT_APPS += sw/apps/dnn/concat
 SNRT_APPS += sw/apps/dnn/fused_concat_linear
 SNRT_APPS += sw/apps/dnn/transpose
