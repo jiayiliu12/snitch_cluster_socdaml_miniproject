@@ -5,7 +5,7 @@
 // Author: Viviane Potocnik <vivianep@iis.ee.ethz.ch>
 //         Luca Colagrande <colluca@iis.ee.ethz.ch>
 
-static inline void mha_fp32(flashattention_2_layer_t layer) {
+static inline void mha_flashattention_2_fp32(mha_flashattention_2_layer_t layer) {
     // alias layer parameters
     uint32_t dtype = layer.dtype;
     uint32_t L = layer.L;

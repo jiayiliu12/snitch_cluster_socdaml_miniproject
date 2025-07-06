@@ -33,35 +33,36 @@
 //  * @var flashattention_2_layer_t::O
 //  * Pointer to output tensor
 //  */
-// typedef struct {
-//     uint32_t L;
-//     uint32_t S;
-//     uint32_t d;
-//     uint32_t B_r;
-//     uint32_t B_c;
-//     void *Q;
-//     void *K;
-//     void *V;
-//     void *O;
-//     precision_t dtype;
-//     uint32_t baseline;
-//     gemm_fp_t gemm_implementation;
-// } flashattention_2_layer_t;
+typedef struct {
+    uint32_t head;
+    uint32_t L;
+    uint32_t S;
+    uint32_t d;
+    uint32_t B_r;
+    uint32_t B_c;
+    void *Q;
+    void *K;
+    void *V;
+    void *O;
+    precision_t dtype;
+    uint32_t baseline;
+    gemm_fp_t gemm_implementation;
+} mha_flashattention_2_layer_t;
 
-#include "../mha/src/mha_fp16.h"
-#include "../mha/src/mha_fp32.h"
-#include "../mha/src/mha_fp8.h"
+#include "../mha/src/mha_flashattention_2_fp16.h"
+#include "../mha/src/mha_flashattention_2_fp32.h"
+#include "../mha/src/mha_flashattention_2_fp8.h"
 
-static inline void mha_layer(flashattention_2_layer_t layer) {
+static inline void mha_layer(mha_flashattention_2_layer_t layer) {
     switch (layer.dtype) {
         case FP32:
-            mha_fp32(layer);
+            mha_flashattention_2_fp32(layer);
             break;
         case FP16:
-            mha_fp16(layer);
+            mha_flashattention_2_fp16(layer);
             break;
         case FP8:
-            mha_fp8(layer);
+            mha_flashattention_2_fp8(layer);
             break;
         default:
             break;

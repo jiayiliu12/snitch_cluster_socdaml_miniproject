@@ -240,7 +240,7 @@ def emit_header(section, params):
     data_str += [format_array_declaration(f'extern {ctype}', k_uid, K.shape)]
     data_str += [format_array_declaration(f'extern {ctype}', v_uid, V.shape)]
     data_str += [format_array_declaration(ctype, o_uid, output.shape)]
-    data_str += [format_struct_definition('flashattention_2_layer_t', 'layer', layer_cfg)]
+    data_str += [format_struct_definition('mha_flashattention_2_layer_t', 'layer', layer_cfg)]
     data_str += [format_array_definition(ctype, q_uid, Q)]
     data_str += [format_array_definition(ctype, k_uid, K)]
     data_str += [format_array_definition(ctype, v_uid, V)]

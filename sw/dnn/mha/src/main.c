@@ -9,11 +9,18 @@
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wreorder-init-list"
-#include "data.h"
+#include "mha_data.h"
 #pragma clang diagnostic pop
 
 int main() {
-    // if()
-    mha_layer(layer);
+    if (snrt_cluster_idx()==0) {
+        mha_layer(layer);
+    }
+    if (snrt_cluster_idx()==1) {
+        mha_layer(layer);
+    }
+    if (snrt_cluster_idx()==2) {
+        mha_layer(layer);
+    } 
     return 0;
 }
