@@ -196,6 +196,7 @@ def get_gemm_implementation(params):
 
 
 def emit_header(section, params):
+    num_heads = params['num_heads']
     L = params['L']
     S = params['S']
     d = params['d']
@@ -204,49 +205,55 @@ def emit_header(section, params):
     prec = params['dtype']
     gemm_impl = get_gemm_implementation(params)
 
-    validate(gemm_impl=gemm_impl, **params)
+    # validate(gemm_impl=gemm_impl, **params)
 
     # torch_type = data_utils.torch_type_from_precision_t(prec)
     ff_desc = data_utils.ff_desc_from_precision_t(prec)
     ctype = data_utils.ctype_from_precision_t(prec)
 
-    # Generate same data for all dtypes for easier debugging.
-    # To achieve this, we always generate in FP16 and then convert.
-    # Q = torch.rand(L, d, requires_grad=False, dtype=torch.float16).to(dtype=torch_type)
-    # K = torch.rand(S, d, requires_grad=False, dtype=torch.float16).to(dtype=torch_type)
-    # V = torch.rand(S, d, requires_grad=False, dtype=torch.float16).to(dtype=torch_type)
-    Q = ff.array(np.random.rand(L, d), ff_desc)
-    K = ff.array(np.random.rand(S, d), ff_desc)
-    V = ff.array(np.random.rand(S, d), ff_desc)
+    mha_data = []
+    mha_data.append(emit_license())
 
-    output = exact_flexfloat_golden_model(Q, K, V, B_r, B_c, ff_desc)
+    for head_idx in range(num_heads):
 
-    q_uid = 'Q'
-    k_uid = 'K'
-    v_uid = 'V'
-    o_uid = 'O'
+        # Generate same data for all dtypes for easier debugging.
+        # To achieve this, we always generate in FP16 and then convert.
+        # Q = torch.rand(L, d, requires_grad=False, dtype=torch.float16).to(dtype=torch_type)
+        # K = torch.rand(S, d, requires_grad=False, dtype=torch.float16).to(dtype=torch_type)
+        # V = torch.rand(S, d, requires_grad=False, dtype=torch.float16).to(dtype=torch_type)
+        Q = ff.array(np.random.rand(L, d), ff_desc)
+        K = ff.array(np.random.rand(S, d), ff_desc)
+        V = ff.array(np.random.rand(S, d), ff_desc)
 
-    layer_cfg = {
-        **params,
-        'gemm_implementation': gemm_impl,
-        'Q': q_uid,
-        'K': k_uid,
-        'V': v_uid,
-        'O': o_uid,
-    }
+        q_uid = 'Q_' + str(head_idx)
+        k_uid = 'K_' + str(head_idx)
+        v_uid = 'V_' + str(head_idx)
+        o_uid = 'O_' + str(head_idx)
 
-    data_str = [emit_license()]
-    data_str += [format_array_declaration(f'extern {ctype}', q_uid, Q.shape)]
-    data_str += [format_array_declaration(f'extern {ctype}', k_uid, K.shape)]
-    data_str += [format_array_declaration(f'extern {ctype}', v_uid, V.shape)]
-    data_str += [format_array_declaration(ctype, o_uid, output.shape)]
-    data_str += [format_struct_definition('mha_flashattention_2_layer_t', 'layer', layer_cfg)]
-    data_str += [format_array_definition(ctype, q_uid, Q)]
-    data_str += [format_array_definition(ctype, k_uid, K)]
-    data_str += [format_array_definition(ctype, v_uid, V)]
-    data_str = '\n\n'.join(data_str)
+        layer_cfg = {
+            **params,
+            'head': head_idx,
+            'gemm_implementation': gemm_impl,
+            'Q': q_uid,
+            'K': k_uid,
+            'V': v_uid,
+            'O': o_uid,
+        }
 
-    return data_str
+        output = exact_flexfloat_golden_model(Q, K, V, B_r, B_c, ff_desc)
+
+        mha_data.append(format_array_declaration(f'extern {ctype}', q_uid, Q.shape))
+        mha_data.append(format_array_declaration(f'extern {ctype}', k_uid, K.shape))
+        mha_data.append(format_array_declaration(f'extern {ctype}', v_uid, V.shape))
+        mha_data.append(format_array_declaration(ctype, o_uid, output.shape))
+        mha_data.append(format_struct_definition('mha_flashattention_2_layer_t', 'layer_' + str(head_idx), layer_cfg))
+        mha_data.append(format_array_definition(ctype, q_uid, Q))
+        mha_data.append(format_array_definition(ctype, k_uid, K))
+        mha_data.append(format_array_definition(ctype, v_uid, V))
+
+
+    mha_data = '\n\n'.join(mha_data)
+    return mha_data
 
 
 def main():

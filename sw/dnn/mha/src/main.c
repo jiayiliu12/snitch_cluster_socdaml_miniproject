@@ -12,15 +12,17 @@
 #include "mha_data.h"
 #pragma clang diagnostic pop
 
+
+
 int main() {
     if (snrt_cluster_idx()==0) {
-        mha_layer(layer);
+        mha_layer(layer_0);
     }
     if (snrt_cluster_idx()==1) {
-        mha_layer(layer);
+        mha_layer(layer_1);
     }
     if (snrt_cluster_idx()==2) {
-        mha_layer(layer);
+        mha_layer(layer_2);
     } 
     return 0;
 }

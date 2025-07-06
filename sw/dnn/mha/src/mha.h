@@ -9,32 +9,37 @@
 #include "snrt.h"
 
 // /**
-//  * @struct flashattention_2_layer_t
+//  * @struct mha_flashattention_2_layer_t
 //  * @brief This structure contains all parameters necessary
-//  *        for computing a Multihead Attention layer using FlashAttention-2. Refer to
+//  *        for computing a Multihead attention layer using FlashAttention-2. Refer to
 //  *        "FlashAttention-2: Faster Attention with Better
 //  *        Parallelism and Work Partitioning" for more info.
 //  *        The FlashAttention-2 paper refers to a single sequence
 //  *        length N. To support auto-regressive inference we
 //  *        define two separate parameters L and S, following the
 //  *        PyTorch naming scheme.
-//  * @var flashattention_2_layer_t::L
+//  * @var mha_flashattention_2_layer_t::num_heads
+//  * Number of attention heads
+//  * @var mha_flashattention_2_layer_t::head
+//  * Head index, used to distinguish between different heads
+//  * @var mha_flashattention_2_layer_t::L
 //  * Target sequence length
-//  * @var flashattention_2_layer_t::S
+//  * @var mha_flashattention_2_layer_t::S
 //  * Source sequence length
-//  * @var flashattention_2_layer_t::d
+//  * @var mha_flashattention_2_layer_t::d
 //  * Head dimension
-//  * @var flashattention_2_layer_t::Q
+//  * @var mha_flashattention_2_layer_t::Q
 //  * Pointer to query tensor
-//  * @var flashattention_2_layer_t::K
+//  * @var mha_flashattention_2_layer_t::K
 //  * Pointer to key tensor
-//  * @var flashattention_2_layer_t::V
+//  * @var mha_flashattention_2_layer_t::V
 //  * Pointer to value tensor
-//  * @var flashattention_2_layer_t::O
+//  * @var mha_flashattention_2_layer_t::O
 //  * Pointer to output tensor
 //  */
 typedef struct {
-    uint32_t head;
+    uint8_t num_heads;
+    uint8_t head;
     uint32_t L;
     uint32_t S;
     uint32_t d;
