@@ -15,7 +15,7 @@ import pyflexfloat as ff
 
 from snitch.util.sim import data_utils
 from snitch.util.sim.data_utils import format_struct_definition, \
-    format_array_definition, format_array_declaration, emit_license
+    format_array_definition, format_array_declaration, emit_license, format_scalar_definition
 from snitch.blas import gemm
 
 np.random.seed(42)
@@ -138,7 +138,9 @@ def exact_flexfloat_golden_model(Q, K, V, B_r, B_c, desc):
 
 
 # Verify layer parameters are valid
-def validate(L, S, d, B_r, B_c, dtype, baseline, gemm_impl):
+def validate(num_heads, L, S, d, B_r, B_c, dtype, baseline, gemm_impl):
+    assert num_heads > 0, 'num_heads must be greater than 0'
+    assert num_heads <= 255, 'num_heads must be less than or equal to 255 (with 8 bits allocated)'
     assert (L % B_r) == 0, 'L is not an integer multiple of B_r'
     assert (S % B_c) == 0, 'S is not an integer multiple of B_c'
     assert dtype != 'FP64', 'FP64 precision is not supported yet'
@@ -156,11 +158,13 @@ def validate(L, S, d, B_r, B_c, dtype, baseline, gemm_impl):
     total_size = q_fa_size
     total_size += k_fa_size
     total_size += v_fa_size * 2  # V and V^t
+    total_size *= num_heads ######## is this correct? jiayi #######
     total_size += s_fa_size
     total_size += p_fa_size
     total_size += o_fa_size
     total_size += m_i_size * 2  # m_i and m_i_prev
     total_size += l_i_size
+
     data_utils.validate_tcdm_footprint(total_size)
 
     # Q*K^t
@@ -205,14 +209,18 @@ def emit_header(section, params):
     prec = params['dtype']
     gemm_impl = get_gemm_implementation(params)
 
-    # validate(gemm_impl=gemm_impl, **params)
+    validate(gemm_impl=gemm_impl, **params)
 
     # torch_type = data_utils.torch_type_from_precision_t(prec)
     ff_desc = data_utils.ff_desc_from_precision_t(prec)
     ctype = data_utils.ctype_from_precision_t(prec)
 
-    mha_data = []
-    mha_data.append(emit_license())
+    data_list = []
+    data_list.append(emit_license())
+
+    # Generate num_heads scalar definition
+    num_heads_uid = 'num_heads'
+    data_list.append(format_scalar_definition('__fp8', num_heads_uid, num_heads))
 
     for head_idx in range(num_heads):
 
@@ -230,9 +238,11 @@ def emit_header(section, params):
         v_uid = 'V_' + str(head_idx)
         o_uid = 'O_' + str(head_idx)
 
+        if 'num_heads' in params:
+            del params['num_heads']
+
         layer_cfg = {
             **params,
-            'head': head_idx,
             'gemm_implementation': gemm_impl,
             'Q': q_uid,
             'K': k_uid,
@@ -242,18 +252,34 @@ def emit_header(section, params):
 
         output = exact_flexfloat_golden_model(Q, K, V, B_r, B_c, ff_desc)
 
-        mha_data.append(format_array_declaration(f'extern {ctype}', q_uid, Q.shape))
-        mha_data.append(format_array_declaration(f'extern {ctype}', k_uid, K.shape))
-        mha_data.append(format_array_declaration(f'extern {ctype}', v_uid, V.shape))
-        mha_data.append(format_array_declaration(ctype, o_uid, output.shape))
-        mha_data.append(format_struct_definition('mha_flashattention_2_layer_t', 'layer_' + str(head_idx), layer_cfg))
-        mha_data.append(format_array_definition(ctype, q_uid, Q))
-        mha_data.append(format_array_definition(ctype, k_uid, K))
-        mha_data.append(format_array_definition(ctype, v_uid, V))
+        data_list.append(format_array_declaration(f'extern {ctype}', q_uid, Q.shape))
+        data_list.append(format_array_declaration(f'extern {ctype}', k_uid, K.shape))
+        data_list.append(format_array_declaration(f'extern {ctype}', v_uid, V.shape))
 
+        data_list.append(format_array_declaration(ctype, o_uid, output.shape))
 
-    mha_data = '\n\n'.join(mha_data)
-    return mha_data
+        data_list.append(format_struct_definition('mha_flashattention_2_layer_t', 'layer_' + str(head_idx), layer_cfg))
+        data_list.append(format_array_definition(ctype, q_uid, Q))
+        data_list.append(format_array_definition(ctype, k_uid, K))
+        data_list.append(format_array_definition(ctype, v_uid, V))
+
+    # Generate output weight array
+    w_uid = 'W_O'
+    W_O = ff.array(np.random.rand(d * num_heads, output.shape[1]), ff_desc) # W_O has shape (d * num_heads x d)
+    # data_list.append(format_array_declaration(f'extern {ctype}', w_uid, W_O.shape))
+    data_list.append(format_array_definition(ctype, w_uid, W_O))
+
+    # Generate layers array with pointers to each layer
+    layers_uid = 'layers'
+    layer_names = [f'layer_{i}' for i in range(num_heads)]
+    layers_type = 'const mha_flashattention_2_layer_t *'
+    initializer = ', '.join(f'&{name}' for name in layer_names)
+    decl = format_array_declaration(layers_type, layers_uid, (num_heads,))
+    data_list.append(decl[:-1] + f' = {{ {initializer} }};')  # Double {{ make a single { literal
+
+    data_str = '\n\n'.join(data_list)
+
+    return data_str
 
 
 def main():

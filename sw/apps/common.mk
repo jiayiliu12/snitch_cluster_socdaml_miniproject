@@ -9,7 +9,7 @@ SCRIPTS_DIR := $(realpath $(SRC_DIR)/../scripts)
 
 $(APP)_DATA_CFG ?= $(DATA_DIR)/params.json
 SECTION         ?=
-DATA_H          := $($(APP)_BUILD_DIR)/mha_data.h ##### jiayi #####
+DATA_H          := $($(APP)_BUILD_DIR)/data.h ##### jiayi #####
 DATAGEN_PY       = $(SCRIPTS_DIR)/datagen.py
 
 $(APP)_HEADERS      := $(DATA_H)

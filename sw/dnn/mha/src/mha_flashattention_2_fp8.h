@@ -28,7 +28,6 @@
 
 static inline void mha_flashattention_2_fp8(mha_flashattention_2_layer_t layer) {
     // alias layer parameters
-    uint32_t head = layer.head;
     uint32_t dtype = layer.dtype;
     uint32_t L = layer.L;
     uint32_t S = layer.S;
@@ -321,7 +320,7 @@ static inline void mha_flashattention_2_fp8(mha_flashattention_2_layer_t layer) 
 
         // Write back O row block (B_r, d) to DRAM
         if (snrt_is_dm_core()) {
-            snrt_dma_store_2d_tile(O_l3 + head * (L + d),         // dst /////////// jiayi ////////////
+            snrt_dma_store_2d_tile(O_l3,         // dst
                                    O_fa,         // src
                                    t_r,          // tile_x1_idx
                                    0,            // tile_x0_idx
