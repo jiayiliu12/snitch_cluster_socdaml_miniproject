@@ -4,8 +4,8 @@
 //
 // Luca Colagrande <colluca@iis.ee.ethz.ch>
 
-#include "blas.h"
-#include "dnn.h"
+// #include "blas.h"
+#include "dnn.h" // Includes mha.h and snrt.h
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wreorder-init-list"
@@ -17,6 +17,6 @@
 int main() {
     if (snrt_cluster_idx() < num_heads) {
         mha_layer(*layers[snrt_cluster_idx()]);
-    } 
+    }
     return 0;
 }

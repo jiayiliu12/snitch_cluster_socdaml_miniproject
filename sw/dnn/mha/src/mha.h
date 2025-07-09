@@ -5,8 +5,8 @@
 // Author: Viviane Potocnik <vivianep@iis.ee.ethz.ch>
 //         Luca Colagrande <colluca@iis.ee.ethz.ch>
 
-#include "blas.h"
-#include "snrt.h"
+// #include "blas.h"
+// #include "snrt.h"
 
 // /**
 //  * @struct mha_flashattention_2_layer_t

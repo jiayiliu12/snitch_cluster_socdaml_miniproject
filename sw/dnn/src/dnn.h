@@ -196,7 +196,7 @@ typedef struct network_single_cluster_t_ {
 #include "../concat/src/concat.h"
 // #include "../conv2d/src/conv2d.h"
 #include "../flashattention_2/src/flashattention_2.h"
-#include "../mha/src/mha.h" ///////// jiayi /////////
+#include "../mha/src/mha.h"
 #include "../fused_concat_linear/src/fused_concat_linear.h"
 #include "../gelu/src/gelu.h"
 #include "../layernorm/src/layernorm.h"
