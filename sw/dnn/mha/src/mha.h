@@ -18,10 +18,6 @@
 //  *        length N. To support auto-regressive inference we
 //  *        define two separate parameters L and S, following the
 //  *        PyTorch naming scheme.
-//  * @var mha_flashattention_2_layer_t::num_heads
-//  * Number of attention heads
-//  * @var mha_flashattention_2_layer_t::head
-//  * Head index, used to distinguish between different heads
 //  * @var mha_flashattention_2_layer_t::L
 //  * Target sequence length
 //  * @var mha_flashattention_2_layer_t::S
@@ -56,16 +52,17 @@ typedef struct {
 #include "../mha/src/mha_flashattention_2_fp32.h"
 #include "../mha/src/mha_flashattention_2_fp8.h"
 
-static inline void mha_layer(mha_flashattention_2_layer_t layer) {
+
+static inline void mha_layer(mha_flashattention_2_layer_t layer, uint8_t num_heads, uint32_t *W_O) {
     switch (layer.dtype) {
         case FP32:
-            mha_flashattention_2_fp32(layer);
+            mha_flashattention_2_fp32(layer, num_heads, (uint32_t *)W_O);
             break;
         case FP16:
-            mha_flashattention_2_fp16(layer);
+            mha_flashattention_2_fp16(layer, num_heads, (uint16_t *)W_O);
             break;
         case FP8:
-            mha_flashattention_2_fp8(layer);
+            mha_flashattention_2_fp8(layer, num_heads, (uint8_t *)W_O);
             break;
         default:
             break;

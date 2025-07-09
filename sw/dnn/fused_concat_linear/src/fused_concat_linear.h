@@ -1,3 +1,6 @@
+#ifndef FUSED_CONCAT_LINEAR_H
+#define FUSED_CONCAT_LINEAR_H
+
 // Copyright 2023 ETH Zurich and University of Bologna.
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
@@ -11,14 +14,24 @@
  * @struct fused_concat_linear_layer_t
  * @brief This structure contains all parameters necessary
  *        for computing a Concat layer.
- * @var fused_concat_linear_layer_t::input_shape
- * Shape of the input tensors
  * @var fused_concat_linear_layer_t::num_inputs
  * Number of input tensors to concatenate
+ * @var fused_concat_linear_layer_t::input_shape
+ * Shape of the input tensors
+ * @var fused_concat_linear_layer_t::output_shape   
+ * Shape of the output tensor
  * @var fused_concat_linear_layer_t::inputs
- * Pointer to an array of pointers to the individual tensors to concatenate
- * @var fused_concat_linear_layer_t::output
- * Pointer to the concatenated output tensor
+ * Pointers to the input tensors
+ * @var fused_concat_linear_layer_t::weights
+ * Pointer to the weights tensor for the linear layer
+ * @var fused_concat_linear_layer_t::concat_output
+ * Pointer to the output tensor of the concat layer
+ * @var fused_concat_linear_layer_t::linear_output
+ * Pointer to the output tensor of the linear layer
+ * @var fused_concat_linear_layer_t::dtype
+ * Data type of the tensors (e.g., SNRT_DTYPE_FP32)
+ * @var fused_concat_linear_layer_t::gemm_implementation
+ * Pointer to the GEMM implementation function
  */
 typedef struct {
     uint32_t num_inputs;
@@ -134,3 +147,5 @@ static inline int fused_concat_linear_optimized(fused_concat_linear_layer_t l) {
 static inline int fused_concat_linear_layer(fused_concat_linear_layer_t l) {
     return fused_concat_linear_optimized(l);
 }
+
+#endif // FUSED_CONCAT_LINEAR_H

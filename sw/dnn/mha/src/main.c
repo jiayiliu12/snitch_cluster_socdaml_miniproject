@@ -15,8 +15,8 @@
 
 
 int main() {
-    if (snrt_cluster_idx() < num_heads) {
-        mha_layer(*layers[snrt_cluster_idx()]);
+    if (snrt_is_compute_core() && snrt_cluster_idx() < num_heads) {
+        mha_layer(*layers[snrt_cluster_idx()], num_heads, (uint32_t *)W_O);
     }
     return 0;
 }

@@ -26,7 +26,10 @@
 //     return res;
 // }
 
-static inline void mha_flashattention_2_fp8(mha_flashattention_2_layer_t layer) {
+#include "../fused_concat_linear/src/fused_concat_linear.h"
+
+static inline void mha_flashattention_2_fp8(mha_flashattention_2_layer_t layer, 
+                                            uint8_t num_heads, uint8_t *W_O) {
     // alias layer parameters
     uint32_t dtype = layer.dtype;
     uint32_t L = layer.L;
@@ -87,6 +90,8 @@ static inline void mha_flashattention_2_fp8(mha_flashattention_2_layer_t layer) 
     float *m_i_prev =
         (float *)snrt_l1_alloc_cluster_local(m_i_size, alignof(float));
     float *l_i = (float *)snrt_l1_alloc_cluster_local(l_i_size, alignof(float));
+    // allocate memory in TCDM for fused_concat_linear concat output
+    float *ConcatO_fa = (float *)snrt_l1_alloc_cluster_local(o_fa_size*num_heads, alignof(float));
 
     // Allocate space for V^t
     char *V_t;
@@ -314,27 +319,53 @@ static inline void mha_flashattention_2_fp8(mha_flashattention_2_layer_t layer) 
         }
 
         snrt_fpu_fence();
-        snrt_cluster_hw_barrier();
+        snrt_cluster_hw_barrier(); // This barrier means that all O_idx calculations are finished after this point!
 
         snrt_mcycle();
 
-        // Write back O row block (B_r, d) to DRAM
-        if (snrt_is_dm_core()) {
-            snrt_dma_store_2d_tile(O_l3,         // dst
-                                   O_fa,         // src
-                                   t_r,          // tile_x1_idx
-                                   0,            // tile_x0_idx
-                                   B_r,          // tile_x1_size
-                                   d,            // tile_x0_size
-                                   d,            // full_x0_size
-                                   sizeof(char)  // prec
-            );
-            snrt_dma_wait_all();
+        // 1. Make an array of pointers for all O_idx tiles, and put them in the correct order into the list
+        void *concat_inputs[num_heads];
+        concat_inputs[snrt_cluster_idx()] = O_fa; // Each cluster will write its O tile to the list
+
+        // 2. Do snrt_cluster_hw_barrier() to get the full list
+        snrt_cluster_hw_barrier();
+
+        // 3. Let one of the clusters do the fused concat linear operation
+        if (snrt_cluster_idx() == 0) {
+            
+            fused_concat_linear_layer_t fused_concat_linear_layer_test = {
+                .num_inputs = num_heads,
+                .input_shape = {S,d*num_heads},
+                .output_shape = {S,S},
+                .inputs = concat_inputs,
+                .weights = &W_O,
+                .concat_output = &ConcatO_fa,
+                .linear_output = &O_fa,
+                .dtype = dtype,
+                .gemm_implementation = gemm_implementation
+            };
+        
+            snrt_mcycle();
+
+            // 4. Let one of the clusters' DMA store the O row tile back to DRAM using snrt_dma_store_2d_tile(...)
+            // Write back O row block (B_r, d) to DRAM
+            if (snrt_is_dm_core()) {
+                snrt_dma_store_2d_tile(O_l3,          // dst
+                                    O_fa,          // src
+                                    t_r,           // tile_x1_idx
+                                    0,             // tile_x0_idx
+                                    B_r,           // tile_x1_size
+                                    d,             // tile_x0_size
+                                    d,             // full_x0_size
+                                    sizeof(float)  // prec
+                                    //tile_ld (leading dimension of the tile), in bytes IS MISSING??
+                );
+                snrt_dma_wait_all();
+            }
+            snrt_cluster_hw_barrier();
+
+            snrt_mcycle();
         }
-
-        snrt_cluster_hw_barrier();
-
-        snrt_mcycle();
 
     }  // end of T_r loop
 
