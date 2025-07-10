@@ -28,9 +28,10 @@
 
 #include "../fused_concat_linear/src/fused_concat_linear.h"
 
-static inline void mha_flashattention_2_fp8(mha_flashattention_2_layer_t layer, 
-                                            uint8_t num_heads, uint8_t *W_O) {
+static inline void mha_flashattention_2_fp8(mha_flashattention_2_layer_t layer) {
     // alias layer parameters
+    uint32_t num_heads = layer.num_heads;
+    void *W_O = layer.W_O;
     uint32_t dtype = layer.dtype;
     uint32_t L = layer.L;
     uint32_t S = layer.S;

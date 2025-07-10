@@ -34,18 +34,20 @@
 //  * Pointer to output tensor
 //  */
 typedef struct {
+    uint8_t num_heads;
     uint32_t L;
     uint32_t S;
     uint32_t d;
     uint32_t B_r;
     uint32_t B_c;
-    void *Q;
-    void *K;
-    void *V;
-    void *O;
     precision_t dtype;
     uint32_t baseline;
     gemm_fp_t gemm_implementation;
+    void **Q;
+    void **K;
+    void **V;
+    void **O;
+    void *W_O;
 } mha_flashattention_2_layer_t;
 
 #include "../mha/src/mha_flashattention_2_fp16.h"
@@ -53,16 +55,16 @@ typedef struct {
 #include "../mha/src/mha_flashattention_2_fp8.h"
 
 
-static inline void mha_layer(mha_flashattention_2_layer_t layer, uint8_t num_heads, uint32_t *W_O) {
+static inline void mha_layer(mha_flashattention_2_layer_t layer) {
     switch (layer.dtype) {
         case FP32:
-            mha_flashattention_2_fp32(layer, num_heads, (uint32_t *)W_O);
+            mha_flashattention_2_fp32(layer);
             break;
         case FP16:
-            mha_flashattention_2_fp16(layer, num_heads, (uint16_t *)W_O);
+            mha_flashattention_2_fp16(layer);
             break;
         case FP8:
-            mha_flashattention_2_fp8(layer, num_heads, (uint8_t *)W_O);
+            mha_flashattention_2_fp8(layer);
             break;
         default:
             break;

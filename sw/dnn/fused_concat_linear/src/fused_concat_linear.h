@@ -38,6 +38,7 @@ typedef struct {
     uint32_t input_shape[2];
     uint32_t output_shape[2];
     void **inputs;
+    uint8_t inputs_from_l1; // If set, inputs are loaded from L1
     void *weights;
     void *concat_output;
     void *linear_output;
@@ -100,13 +101,21 @@ static inline int fused_concat_linear_optimized(fused_concat_linear_layer_t l) {
     uint32_t concat_k = k * l.num_inputs;
 
     size_t size_a = m * k * l.dtype;
-    void *a = snrt_l1_alloc_cluster_local(size_a, l.dtype);
+    void *a;
 
-    if (snrt_is_dm_core()) {
-        snrt_dma_load_2d_tile(a, l.inputs[snrt_cluster_idx()], 0, 0, m, k, k,
-                              l.dtype);
-        snrt_dma_wait_all();
+    // if inputs_from_l1 is set, we allocate in TCDM
+    if (l.inputs_from_l1) {
+        // load inputs from L1
+        a = (void *)l.inputs[snrt_cluster_idx()];
+    } else {
+        a = snrt_l1_alloc_cluster_local(size_a, l.dtype);
+        if (snrt_is_dm_core()) {
+            snrt_dma_load_2d_tile(a, l.inputs[snrt_cluster_idx()], 0, 0, m, k, k,
+                                l.dtype);
+            snrt_dma_wait_all();
+        }
     }
+
     snrt_cluster_hw_barrier();
 
     gemm_args_t gemm_args = {

@@ -218,17 +218,17 @@ def emit_header(section, params):
     data_list = []
     data_list.append(emit_license())
 
-    # Generate num_heads scalar definition
-    num_heads_uid = 'num_heads'
-    data_list.append(format_scalar_definition('__fp8', num_heads_uid, num_heads))
+    # # Generate num_heads scalar definition
+    # num_heads_uid = 'num_heads'
+    # data_list.append(format_scalar_definition('__fp8', num_heads_uid, num_heads))
+
+    Q_list = []
+    K_list = []
+    V_list = []
+    O_list = []
 
     for head_idx in range(num_heads):
 
-        # Generate same data for all dtypes for easier debugging.
-        # To achieve this, we always generate in FP16 and then convert.
-        # Q = torch.rand(L, d, requires_grad=False, dtype=torch.float16).to(dtype=torch_type)
-        # K = torch.rand(S, d, requires_grad=False, dtype=torch.float16).to(dtype=torch_type)
-        # V = torch.rand(S, d, requires_grad=False, dtype=torch.float16).to(dtype=torch_type)
         Q = ff.array(np.random.rand(L, d), ff_desc)
         K = ff.array(np.random.rand(S, d), ff_desc)
         V = ff.array(np.random.rand(S, d), ff_desc)
@@ -238,44 +238,57 @@ def emit_header(section, params):
         v_uid = 'V_' + str(head_idx)
         o_uid = 'O_' + str(head_idx)
 
-        if 'num_heads' in params:
-            del params['num_heads']
+        O = exact_flexfloat_golden_model(Q, K, V, B_r, B_c, ff_desc)
 
-        layer_cfg = {
-            **params,
-            'gemm_implementation': gemm_impl,
-            'Q': q_uid,
-            'K': k_uid,
-            'V': v_uid,
-            'O': o_uid,
-        }
-
-        output = exact_flexfloat_golden_model(Q, K, V, B_r, B_c, ff_desc)
+        Q_list.append(q_uid)
+        K_list.append(k_uid)
+        V_list.append(v_uid)
+        O_list.append(o_uid)
 
         data_list.append(format_array_declaration(f'extern {ctype}', q_uid, Q.shape))
         data_list.append(format_array_declaration(f'extern {ctype}', k_uid, K.shape))
         data_list.append(format_array_declaration(f'extern {ctype}', v_uid, V.shape))
+        data_list.append(format_array_declaration(ctype, o_uid, O.shape))
 
-        data_list.append(format_array_declaration(ctype, o_uid, output.shape))
-
-        data_list.append(format_struct_definition('mha_flashattention_2_layer_t', 'layer_' + str(head_idx), layer_cfg))
         data_list.append(format_array_definition(ctype, q_uid, Q))
         data_list.append(format_array_definition(ctype, k_uid, K))
         data_list.append(format_array_definition(ctype, v_uid, V))
 
-    # Generate output weight array
+    # # Generate output weight array
     w_uid = 'W_O'
-    W_O = ff.array(np.random.rand(d * num_heads, output.shape[1]), ff_desc) # W_O has shape (d * num_heads x d)
-    # data_list.append(format_array_declaration(f'extern {ctype}', w_uid, W_O.shape))
+    W_O = ff.array(np.random.rand(d * num_heads, O.shape[1]), ff_desc) # W_O has shape (d * num_heads x d)
+    data_list.append(format_array_declaration(f'extern {ctype}', w_uid, W_O.shape))
     data_list.append(format_array_definition(ctype, w_uid, W_O))
 
-    # Generate layers array with pointers to each layer
-    layers_uid = 'layers'
-    layer_names = [f'layer_{i}' for i in range(num_heads)]
-    layers_type = 'const mha_flashattention_2_layer_t *'
-    initializer = ', '.join(f'&{name}' for name in layer_names)
-    decl = format_array_declaration(layers_type, layers_uid, (num_heads,))
-    data_list.append(decl[:-1] + f' = {{ {initializer} }};')  # Double {{ make a single { literal
+    # # data_list.append(format_array_declaration(f'extern {ctype}', w_uid, W_O.shape))
+    # data_list.append(format_array_definition(ctype, w_uid, W_O))
+
+    # # Generate layers array with pointers to each layer
+    # layers_uid = 'layers'
+    # layer_names = [f'layer_{i}' for i in range(num_heads)]
+    # layers_type = 'const mha_flashattention_2_layer_t *'
+    # initializer = ', '.join(f'&{name}' for name in layer_names)
+    # decl = format_array_declaration(layers_type, layers_uid, (num_heads,))
+    # data_list.append(decl[:-1] + f' = {{ {initializer} }};')  # Double {{ make a single { literal
+
+    V_list_str = ', '.join(f'&{V}' for V in V_list)
+    Q_list_str = ', '.join(f'&{Q}' for Q in Q_list)
+    K_list_str = ', '.join(f'&{K}' for K in K_list)
+    O_list_str = ', '.join(f'&{O}' for O in O_list)
+
+
+    layer_cfg = {
+        **params,
+        'gemm_implementation': gemm_impl,
+        'Q': '(void*[]){' + Q_list_str + '}',
+        'K': '(void*[]){' + K_list_str + '}',
+        'V': '(void*[]){' + V_list_str + '}',
+        'O': '(void*[]){' + O_list_str + '}',
+        'W_O': f'&{w_uid}',
+    }
+
+
+    data_list.append(format_struct_definition('mha_flashattention_2_layer_t', 'layer', layer_cfg))
 
     data_str = '\n\n'.join(data_list)
 
