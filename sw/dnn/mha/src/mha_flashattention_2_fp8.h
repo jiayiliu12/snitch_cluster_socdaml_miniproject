@@ -91,7 +91,7 @@ static inline void mha_flashattention_2_fp8(mha_flashattention_2_layer_t layer,
         (float *)snrt_l1_alloc_cluster_local(m_i_size, alignof(float));
     float *l_i = (float *)snrt_l1_alloc_cluster_local(l_i_size, alignof(float));
     // allocate memory in TCDM for fused_concat_linear concat output
-    float *ConcatO_fa = (float *)snrt_l1_alloc_cluster_local(o_fa_size*num_heads, alignof(float));
+    float *Concat_O_fa = (float *)snrt_l1_alloc_cluster_local(o_fa_size*num_heads, alignof(float));
 
     // Allocate space for V^t
     char *V_t;
@@ -319,32 +319,35 @@ static inline void mha_flashattention_2_fp8(mha_flashattention_2_layer_t layer,
         }
 
         snrt_fpu_fence();
-        snrt_cluster_hw_barrier(); // This barrier means that all O_idx calculations are finished after this point!
+        snrt_cluster_hw_barrier(); // ---> all t_r-th tiles of a single O_idx are finished in this cluster!
 
         snrt_mcycle();
 
-        // 1. Make an array of pointers for all O_idx tiles, and put them in the correct order into the list
-        void *concat_inputs[num_heads];
-        concat_inputs[snrt_cluster_idx()] = O_fa; // Each cluster will write its O tile to the list
+        // 1. Make an void array of pointers for all O_idx tiles, and put them in the correct order into the list
+        void **concat_inputs = (void **)snrt_l1_alloc_cluster_local(num_heads * sizeof(void *), alignof(void *));
+        // void *concat_inputs[num_heads];
+        concat_inputs[snrt_cluster_idx()] = (void *)O_fa; // Each cluster will write its t_r-th O tile to the list
 
-        // 2. Do snrt_cluster_hw_barrier() to get the full list
-        snrt_cluster_hw_barrier();
+        // 2. Synchronize ALL CLUSTERS to get the full list ---> all t_r-th tiles of ALL O_idx are finished!
+        snrt_global_barrier();
 
         // 3. Let one of the clusters do the fused concat linear operation
-        if (snrt_cluster_idx() == 0) {
+        if (snrt_cluster_idx() == 0) { // Fused_concat-linear operation is optimized for an entire cluster
             
-            fused_concat_linear_layer_t fused_concat_linear_layer_test = {
+            fused_concat_linear_layer_t fused_concat_linear_layer = {
                 .num_inputs = num_heads,
                 .input_shape = {S,d*num_heads},
                 .output_shape = {S,S},
                 .inputs = concat_inputs,
-                .weights = &W_O,
-                .concat_output = &ConcatO_fa,
-                .linear_output = &O_fa,
+                .weights = W_O,
+                .concat_output = Concat_O_fa,
+                .linear_output = O_fa,
                 .dtype = dtype,
                 .gemm_implementation = gemm_implementation
             };
-        
+            
+            fused_concat_linear_optimized(fused_concat_linear_layer);
+
             snrt_mcycle();
 
             // 4. Let one of the clusters' DMA store the O row tile back to DRAM using snrt_dma_store_2d_tile(...)
