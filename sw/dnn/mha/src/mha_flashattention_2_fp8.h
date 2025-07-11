@@ -5,26 +5,6 @@
 // Author: Viviane Potocnik <vivianep@iis.ee.ethz.ch>
 //         Luca Colagrande <colluca@iis.ee.ethz.ch>
 
-// static inline float fp8_to_float(char val) {
-//     float res;
-//     asm volatile(
-//         "fmv.b.x %[res], %[val]\n"
-//         "fcvt.s.b %[res], %[res]\n"
-//         : [ res ] "=f"(res)
-//         : [ val ] "r"(val));
-//     return res;
-// }
-
-// static inline char float_to_fp8(float val) {
-//     char res;
-//     asm volatile(
-//         "fcvt.b.s ft3, %[val]\n"
-//         "fmv.x.b %[res], ft3\n"
-//         : [ res ] "=r"(res)
-//         : [ val ] "f"(val)
-//         : "ft3");
-//     return res;
-// }
 
 #include "../fused_concat_linear/src/fused_concat_linear.h"
 
@@ -40,10 +20,10 @@ static inline void mha_flashattention_2_fp8(mha_flashattention_2_layer_t layer) 
     uint32_t B_c = layer.B_c;
     uint32_t baseline = layer.baseline;
     gemm_fp_t gemm_implementation = layer.gemm_implementation;
-    char *Q_l3 = (char *)layer.Q;
-    char *K_l3 = (char *)layer.K;
-    char *V_l3 = (char *)layer.V;
-    char *O_l3 = (char *)layer.O;
+    char *Q_l3 = (char *)layer.Q[snrt_cluster_idx()];
+    char *K_l3 = (char *)layer.K[snrt_cluster_idx()];
+    char *V_l3 = (char *)layer.V[snrt_cluster_idx()];
+    void *O_l3 = layer.O;
 
     // gemm specific parameters
     sc_st_gemm_args_t gemm_args;
@@ -91,10 +71,13 @@ static inline void mha_flashattention_2_fp8(mha_flashattention_2_layer_t layer) 
     float *m_i_prev =
         (float *)snrt_l1_alloc_cluster_local(m_i_size, alignof(float));
     float *l_i = (float *)snrt_l1_alloc_cluster_local(l_i_size, alignof(float));
-    // allocate memory in TCDM for fused_concat_linear concat output
-    float *Concat_O_fa = (float *)snrt_l1_alloc_cluster_local(o_fa_size*num_heads, alignof(float));
 
-    // Allocate space for V^t
+    // allocate memory in TCDM for fused_concat_linear operation
+    char *Concat_O_fa = (char *)snrt_l1_alloc_cluster_local(o_fa_size*num_heads, alignof(char));
+    void **concat_inputs = (void **)snrt_l1_alloc_cluster_local(num_heads * sizeof(void *), alignof(void *));
+    concat_inputs[snrt_cluster_idx()] = (void *)O_fa; // Each cluster will write its t_r-th O tile to the list. This is just a pointer!
+
+    // allocate space for V^t when using optimized kernels
     char *V_t;
     if (!baseline) {
         V_t = (char *)snrt_l1_alloc_cluster_local(v_fa_size, alignof(char));
@@ -109,13 +92,13 @@ static inline void mha_flashattention_2_fp8(mha_flashattention_2_layer_t layer) 
     for (int t_r = 0; t_r < T_r; t_r++) {
         // DMA copy Q row block to TCDM
         if (snrt_is_dm_core()) {
-            snrt_dma_load_2d_tile(Q_fa,         // dst
-                                  Q_l3,         // src
-                                  t_r,          // tile_x1_idx
-                                  0,            // tile_x0_idx
-                                  B_r,          // tile_x1_size
-                                  d,            // tile_x0_size
-                                  d,            // full_x0_size
+            snrt_dma_load_2d_tile(Q_fa,          // dst
+                                  Q_l3,          // src
+                                  t_r,           // tile_x1_idx
+                                  0,             // tile_x0_idx
+                                  B_r,           // tile_x1_size
+                                  d,             // tile_x0_size
+                                  d,             // full_x0_size
                                   sizeof(char)  // prec
             );
             snrt_dma_wait_all();
@@ -152,22 +135,22 @@ static inline void mha_flashattention_2_fp8(mha_flashattention_2_layer_t layer) 
             // DMA copy K column block (B_c, d) and V row block (B_c, d) to
             // TCDM. Both K and V are stored in (S, d) form in memory
             if (!snrt_is_compute_core()) {
-                snrt_dma_load_2d_tile(K_fa,         // dst
-                                      K_l3,         // src
-                                      t_c,          // tile_x1_idx
-                                      0,            // tile_x0_idx
-                                      B_c,          // tile_x1_size
-                                      d,            // tile_x0_size
-                                      d,            // full_x0_size
+                snrt_dma_load_2d_tile(K_fa,          // dst
+                                      K_l3,          // src
+                                      t_c,           // tile_x1_idx
+                                      0,             // tile_x0_idx
+                                      B_c,           // tile_x1_size
+                                      d,             // tile_x0_size
+                                      d,             // full_x0_size
                                       sizeof(char)  // prec
                 );
-                snrt_dma_load_2d_tile(V_fa,         // dst
-                                      V_l3,         // src
-                                      t_c,          // tile_x1_idx
-                                      0,            // tile_x0_idx
-                                      B_c,          // tile_x1_size
-                                      d,            // tile_x0_size
-                                      d,            // full_x0_size
+                snrt_dma_load_2d_tile(V_fa,          // dst
+                                      V_l3,          // src
+                                      t_c,           // tile_x1_idx
+                                      0,             // tile_x0_idx
+                                      B_c,           // tile_x1_size
+                                      d,             // tile_x0_size
+                                      d,             // full_x0_size
                                       sizeof(char)  // prec
                 );
                 snrt_dma_wait_all();
@@ -325,51 +308,28 @@ static inline void mha_flashattention_2_fp8(mha_flashattention_2_layer_t layer) 
         snrt_mcycle();
 
         // 1. Make an void array of pointers for all O_idx tiles, and put them in the correct order into the list
-        void **concat_inputs = (void **)snrt_l1_alloc_cluster_local(num_heads * sizeof(void *), alignof(void *));
-        // void *concat_inputs[num_heads];
-        concat_inputs[snrt_cluster_idx()] = (void *)O_fa; // Each cluster will write its t_r-th O tile to the list
-
-        // 2. Synchronize ALL CLUSTERS to get the full list ---> all t_r-th tiles of ALL O_idx are finished!
-        snrt_global_barrier();
-
-        // 3. Let one of the clusters do the fused concat linear operation
-        if (snrt_cluster_idx() == 0) { // Fused_concat-linear operation is optimized for an entire cluster
+        // 2. Synchronize ALL CLUSTERS to get the full list (done by the fused_concat_linear operation))
+        // 3. Let ALL of the clusters do the fused concat linear operation and get back the final O tile
+        // Fused_concat-linear operation is optimized for ALL clusters
             
-            fused_concat_linear_layer_t fused_concat_linear_layer = {
-                .num_inputs = num_heads,
-                .input_shape = {S,d*num_heads},
-                .output_shape = {S,S},
-                .inputs = concat_inputs,
-                .weights = W_O,
-                .concat_output = Concat_O_fa,
-                .linear_output = O_fa,
-                .dtype = dtype,
-                .gemm_implementation = gemm_implementation
-            };
-            
-            fused_concat_linear_optimized(fused_concat_linear_layer);
+        fused_concat_linear_layer_t fused_concat_linear_layer = {
+            .num_inputs = num_heads,
+            .input_shape = {S,d},
+            .output_shape = {S,S},
+            .inputs = concat_inputs,
+            .inputs_from_l1 = 1, // Use TCDM for inputs
+            .weights = W_O,
+            .concat_output = Concat_O_fa,
+            .linear_output = (char *)O_l3 + t_r * B_r * d,
+            .dtype = dtype,
+            .gemm_implementation = gemm_implementation
+        };
+        
+        fused_concat_linear_optimized(fused_concat_linear_layer);
 
-            snrt_mcycle();
+        snrt_cluster_hw_barrier();
 
-            // 4. Let one of the clusters' DMA store the O row tile back to DRAM using snrt_dma_store_2d_tile(...)
-            // Write back O row block (B_r, d) to DRAM
-            if (snrt_is_dm_core()) {
-                snrt_dma_store_2d_tile(O_l3,          // dst
-                                    O_fa,          // src
-                                    t_r,           // tile_x1_idx
-                                    0,             // tile_x0_idx
-                                    B_r,           // tile_x1_size
-                                    d,             // tile_x0_size
-                                    d,             // full_x0_size
-                                    sizeof(float)  // prec
-                                    //tile_ld (leading dimension of the tile), in bytes IS MISSING??
-                );
-                snrt_dma_wait_all();
-            }
-            snrt_cluster_hw_barrier();
-
-            snrt_mcycle();
-        }
+        snrt_mcycle();
 
     }  // end of T_r loop
 

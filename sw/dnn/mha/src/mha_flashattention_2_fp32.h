@@ -297,6 +297,7 @@ static inline void mha_flashattention_2_fp32(mha_flashattention_2_layer_t layer)
                 }
             }
         }
+
         snrt_fpu_fence();
         snrt_cluster_hw_barrier(); // ---> all t_r-th tiles of a single O_idx are finished in this cluster!
 
