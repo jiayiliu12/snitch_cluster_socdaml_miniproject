@@ -46,7 +46,7 @@ typedef struct {
     void **Q;
     void **K;
     void **V;
-    void **O;
+    void *O;
     void *W_O;
 } mha_flashattention_2_layer_t;
 
