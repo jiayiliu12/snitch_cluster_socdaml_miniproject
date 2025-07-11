@@ -225,7 +225,8 @@ def emit_header(section, params):
     Q_list = []
     K_list = []
     V_list = []
-    O_list = []
+
+
 
     for head_idx in range(num_heads):
 
@@ -236,23 +237,24 @@ def emit_header(section, params):
         q_uid = 'Q_' + str(head_idx)
         k_uid = 'K_' + str(head_idx)
         v_uid = 'V_' + str(head_idx)
-        o_uid = 'O_' + str(head_idx)
-
-        O = exact_flexfloat_golden_model(Q, K, V, B_r, B_c, ff_desc)
 
         Q_list.append(q_uid)
         K_list.append(k_uid)
         V_list.append(v_uid)
-        O_list.append(o_uid)
 
         data_list.append(format_array_declaration(f'extern {ctype}', q_uid, Q.shape))
         data_list.append(format_array_declaration(f'extern {ctype}', k_uid, K.shape))
         data_list.append(format_array_declaration(f'extern {ctype}', v_uid, V.shape))
-        data_list.append(format_array_declaration(ctype, o_uid, O.shape))
+
 
         data_list.append(format_array_definition(ctype, q_uid, Q))
         data_list.append(format_array_definition(ctype, k_uid, K))
         data_list.append(format_array_definition(ctype, v_uid, V))
+
+
+    o_uid = 'O'
+    O = exact_flexfloat_golden_model(Q, K, V, B_r, B_c, ff_desc)
+    data_list.append(format_array_declaration(ctype, o_uid, O.shape))
 
     # # Generate output weight array
     w_uid = 'W_O'
@@ -271,20 +273,18 @@ def emit_header(section, params):
     # decl = format_array_declaration(layers_type, layers_uid, (num_heads,))
     # data_list.append(decl[:-1] + f' = {{ {initializer} }};')  # Double {{ make a single { literal
 
-    V_list_str = ', '.join(f'&{V}' for V in V_list)
-    Q_list_str = ', '.join(f'&{Q}' for Q in Q_list)
-    K_list_str = ', '.join(f'&{K}' for K in K_list)
-    O_list_str = ', '.join(f'&{O}' for O in O_list)
-
+    V_list_str = ', '.join(f'{V}' for V in V_list)
+    Q_list_str = ', '.join(f'{Q}' for Q in Q_list)
+    K_list_str = ', '.join(f'{K}' for K in K_list)
 
     layer_cfg = {
         **params,
         'gemm_implementation': gemm_impl,
-        'Q': '(void*[]){' + Q_list_str + '}',
+        'Q': '(void*[]){' + Q_list_str + '}', # TODO: Sure that they should be pointers? 
         'K': '(void*[]){' + K_list_str + '}',
         'V': '(void*[]){' + V_list_str + '}',
-        'O': '(void*[]){' + O_list_str + '}',
-        'W_O': f'&{w_uid}',
+        'O': o_uid,
+        'W_O': w_uid # TODO: Sure that they should be pointers? 
     }
 
 

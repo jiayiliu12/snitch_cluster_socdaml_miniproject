@@ -23,7 +23,7 @@ static inline void mha_flashattention_2_fp32(mha_flashattention_2_layer_t layer)
     float *Q_l3 = (float *)layer.Q[snrt_cluster_idx()];
     float *K_l3 = (float *)layer.K[snrt_cluster_idx()];
     float *V_l3 = (float *)layer.V[snrt_cluster_idx()];
-    float *O_l3 = (float *)layer.O[snrt_cluster_idx()];
+    void *O_l3 = layer.O;
 
     // gemm specific parameters
     sc_st_gemm_args_t gemm_args;
@@ -303,11 +303,8 @@ static inline void mha_flashattention_2_fp32(mha_flashattention_2_layer_t layer)
         snrt_mcycle();
 
         // 1. Make an void array of pointers for all O_idx tiles, and put them in the correct order into the list
-
-        // 2. Synchronize ALL CLUSTERS to get the full list ---> all t_r-th tiles of ALL O_idx are finished!
-        // snrt_global_barrier(); //Don't need: fused_concat_linear_optimized only needs its own part of O_idx!
-
-        // 3. Let one of the clusters do the fused concat linear operation
+        // 2. Synchronize ALL CLUSTERS to get the full list (done by the fused_concat_linear operation))
+        // 3. Let ALL of the clusters do the fused concat linear operation and get back the final O tile
         // Fused_concat-linear operation is optimized for ALL clusters
             
         fused_concat_linear_layer_t fused_concat_linear_layer = {
@@ -318,28 +315,13 @@ static inline void mha_flashattention_2_fp32(mha_flashattention_2_layer_t layer)
             .inputs_from_l1 = 1, // Use TCDM for inputs
             .weights = W_O,
             .concat_output = Concat_O_fa,
-            .linear_output = O_l3,
+            .linear_output = (float *)O_l3 + t_r * B_r * d,
             .dtype = dtype,
             .gemm_implementation = gemm_implementation
         };
         
         fused_concat_linear_optimized(fused_concat_linear_layer);
 
-        // 4. Let one of the clusters' DMA store the O row tile back to DRAM using snrt_dma_store_2d_tile(...)
-        // Write back O row block (B_r, d) to DRAM
-        // if (snrt_is_dm_core()) {
-        //     snrt_dma_store_2d_tile(O_l3,          // dst
-        //                         O_fa,          // src
-        //                         t_r,           // tile_x1_idx
-        //                         0,             // tile_x0_idx
-        //                         B_r,           // tile_x1_size
-        //                         d,             // tile_x0_size
-        //                         d,             // full_x0_size
-        //                         sizeof(float)  // prec
-        //                         //tile_ld (leading dimension of the tile), in bytes IS MISSING??
-        //     );
-        //     snrt_dma_wait_all();
-        // }
         snrt_cluster_hw_barrier();
 
         snrt_mcycle();
