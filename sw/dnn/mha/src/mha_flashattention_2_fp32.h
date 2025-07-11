@@ -305,14 +305,14 @@ static inline void mha_flashattention_2_fp32(mha_flashattention_2_layer_t layer)
         // 1. Make an void array of pointers for all O_idx tiles, and put them in the correct order into the list
 
         // 2. Synchronize ALL CLUSTERS to get the full list ---> all t_r-th tiles of ALL O_idx are finished!
-        snrt_global_barrier(); //This is already done by fused_concat_linear_optimized??? TODO: check this!
+        // snrt_global_barrier(); //Don't need: fused_concat_linear_optimized only needs its own part of O_idx!
 
         // 3. Let one of the clusters do the fused concat linear operation
         // Fused_concat-linear operation is optimized for ALL clusters
             
         fused_concat_linear_layer_t fused_concat_linear_layer = {
             .num_inputs = num_heads,
-            .input_shape = {S,d*num_heads},
+            .input_shape = {S,d},
             .output_shape = {S,S},
             .inputs = concat_inputs,
             .inputs_from_l1 = 1, // Use TCDM for inputs
@@ -324,8 +324,6 @@ static inline void mha_flashattention_2_fp32(mha_flashattention_2_layer_t layer)
         };
         
         fused_concat_linear_optimized(fused_concat_linear_layer);
-
-        snrt_mcycle();
 
         // 4. Let one of the clusters' DMA store the O row tile back to DRAM using snrt_dma_store_2d_tile(...)
         // Write back O row block (B_r, d) to DRAM
@@ -342,9 +340,9 @@ static inline void mha_flashattention_2_fp32(mha_flashattention_2_layer_t layer)
         //     );
         //     snrt_dma_wait_all();
         // }
-        // snrt_cluster_hw_barrier();
+        snrt_cluster_hw_barrier();
 
-        // snrt_mcycle();
+        snrt_mcycle();
 
     }  // end of T_r loop
 
