@@ -38,7 +38,7 @@ typedef struct {
     uint32_t input_shape[2];
     uint32_t output_shape[2];
     void **inputs;
-    uint8_t inputs_from_l1; // If set, inputs are loaded from L1
+    uint8_t inputs_from_l1; // If set, inputs are loaded from L1 in the optimalized version
     void *weights;
     void *concat_output;
     void *linear_output;

@@ -27,6 +27,7 @@ class FusedConcatLinearVerifier(Verifier):
             'out_height': 'I',
             'out_width': 'I',
             'inputs': 'I',
+            'inputs_from_l1': 'I',
             'weights': 'I',
             'concat_output': 'I',
             'linear_output': 'I',

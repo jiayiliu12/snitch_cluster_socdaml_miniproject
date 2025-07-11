@@ -35,6 +35,7 @@ def emit_header(section, params):
     input_shape = params['input_shape']
     output_shape = params['output_shape']
     prec = params['dtype']
+    inputs_from_l1 = params['inputs_from_l1']
 
     assert input_shape[0] == output_shape[0], 'Inconsistent input and output shapes'
 
@@ -51,6 +52,7 @@ def emit_header(section, params):
     layer_cfg = {
         **params,
         'inputs': 'inputs',
+        'inputs_from_l1': inputs_from_l1,
         'weights': 'weights',
         'concat_output': 'concat_output',
         'linear_output': 'linear_output'
