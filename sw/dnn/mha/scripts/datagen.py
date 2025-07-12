@@ -218,15 +218,9 @@ def emit_header(section, params):
     data_list = []
     data_list.append(emit_license())
 
-    # # Generate num_heads scalar definition
-    # num_heads_uid = 'num_heads'
-    # data_list.append(format_scalar_definition('__fp8', num_heads_uid, num_heads))
-
     Q_list = []
     K_list = []
     V_list = []
-
-
 
     for head_idx in range(num_heads):
 
@@ -251,27 +245,16 @@ def emit_header(section, params):
         data_list.append(format_array_definition(ctype, k_uid, K))
         data_list.append(format_array_definition(ctype, v_uid, V))
 
-
+    # Generate output array
     o_uid = 'O'
     O = exact_flexfloat_golden_model(Q, K, V, B_r, B_c, ff_desc)
     data_list.append(format_array_declaration(ctype, o_uid, O.shape))
 
-    # # Generate output weight array
+    # Generate weight_output array
     w_uid = 'W_O'
-    W_O = ff.array(np.random.rand(d * num_heads, O.shape[1]), ff_desc) # W_O has shape (d * num_heads x d)
+    W_O = ff.array(np.random.rand(d * num_heads, O.shape[1]), ff_desc)
     data_list.append(format_array_declaration(f'extern {ctype}', w_uid, W_O.shape))
     data_list.append(format_array_definition(ctype, w_uid, W_O))
-
-    # # data_list.append(format_array_declaration(f'extern {ctype}', w_uid, W_O.shape))
-    # data_list.append(format_array_definition(ctype, w_uid, W_O))
-
-    # # Generate layers array with pointers to each layer
-    # layers_uid = 'layers'
-    # layer_names = [f'layer_{i}' for i in range(num_heads)]
-    # layers_type = 'const mha_flashattention_2_layer_t *'
-    # initializer = ', '.join(f'&{name}' for name in layer_names)
-    # decl = format_array_declaration(layers_type, layers_uid, (num_heads,))
-    # data_list.append(decl[:-1] + f' = {{ {initializer} }};')  # Double {{ make a single { literal
 
     V_list_str = ', '.join(f'{V}' for V in V_list)
     Q_list_str = ', '.join(f'{Q}' for Q in Q_list)
@@ -280,13 +263,12 @@ def emit_header(section, params):
     layer_cfg = {
         **params,
         'gemm_implementation': gemm_impl,
-        'Q': '(void*[]){' + Q_list_str + '}', # TODO: Sure that they should be pointers? 
+        'Q': '(void*[]){' + Q_list_str + '}',
         'K': '(void*[]){' + K_list_str + '}',
         'V': '(void*[]){' + V_list_str + '}',
         'O': o_uid,
-        'W_O': w_uid # TODO: Sure that they should be pointers? 
+        'W_O': w_uid
     }
-
 
     data_list.append(format_struct_definition('mha_flashattention_2_layer_t', 'layer', layer_cfg))
 
