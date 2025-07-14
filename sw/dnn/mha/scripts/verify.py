@@ -17,7 +17,8 @@ from snitch.util.sim.data_utils import ctype_from_precision_t, ff_desc_from_prec
 class MhaVerifier(Verifier):
 
     OUTPUT_UIDS = ['O']
-    ERR_THRESHOLD = {4: 1e-6, 2: 8e-3, 1: 3e-1}
+    # ERR_THRESHOLD = {4: 1e-2, 2: 1e-1, 1: 3e-1} # 4: 1e-6, 8e-3, 1: 3e-1
+    ERR_THRESHOLD = {4: 1e-6, 2: 8e-3, 1: 3e-1} # 4: 1e-6, 8e-3, 1: 3e-1
 
     def __init__(self):
         super().__init__()
@@ -50,8 +51,10 @@ class MhaVerifier(Verifier):
 
     def get_actual_results(self):
         print(f"@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ num_heads = {self.num_heads}")
-        print(f"@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ W_O = {self.W_O!r}")
+        # print(f"@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ W_O = {self.W_O!r}")
         # print(f"@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ Q = {self.Q!r}")
+        print(f"@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ prec = {self.prec}")
+
         return self.get_output_from_symbol(self.OUTPUT_UIDS[0], ctype_from_precision_t(self.prec))
 
     def get_expected_results(self):
