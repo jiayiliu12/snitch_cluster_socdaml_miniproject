@@ -36,7 +36,7 @@ RISCV_CFLAGS += -fno-builtin-sqrtf
 RISCV_CFLAGS += -fno-common
 RISCV_CFLAGS += -fopenmp
 RISCV_CFLAGS += -ftls-model=local-exec
-RISCV_CFLAGS += -O3
+RISCV_CFLAGS += -O1
 RISCV_CFLAGS += -Werror
 ifeq ($(DEBUG), ON)
 RISCV_CFLAGS += -g

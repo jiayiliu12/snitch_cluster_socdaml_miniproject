@@ -22,4 +22,4 @@
 #define SNRT_SUPPORTS_MULTICAST ${cfg['cluster']['enable_multicast']}
 
 // Software configuration
-#define SNRT_LOG2_STACK_SIZE 10
+#define SNRT_LOG2_STACK_SIZE 11
