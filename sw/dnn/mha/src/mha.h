@@ -34,7 +34,7 @@
 //  * Pointer to output tensor
 //  */
 typedef struct {
-    uint8_t num_heads;
+    uint32_t num_heads;
     uint32_t L;
     uint32_t S;
     uint32_t d;

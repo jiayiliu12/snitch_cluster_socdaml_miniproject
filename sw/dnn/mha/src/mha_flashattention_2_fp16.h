@@ -24,6 +24,7 @@ static inline void mha_flashattention_2_fp16(mha_flashattention_2_layer_t layer)
     __fp16 *K_l3 = (__fp16 *)layer.K[snrt_cluster_idx()];
     __fp16 *V_l3 = (__fp16 *)layer.V[snrt_cluster_idx()];
     void *O_l3 = layer.O;
+    int *null_pointer = NULL;
 
     // gemm specific parameters
     sc_st_gemm_args_t gemm_args;
@@ -79,7 +80,7 @@ static inline void mha_flashattention_2_fp16(mha_flashattention_2_layer_t layer)
     float *l_i = (float *)snrt_l1_alloc_cluster_local(l_i_size, alignof(float));
 
     // allocate memory in TCDM for fused_concat_linear operation
-    __fp16 *Concat_O_fa = (__fp16 *)snrt_l1_alloc_cluster_local(o_fa_size*num_heads, alignof(__fp16));
+    // __fp16 *Concat_O_fa = (__fp16 *)snrt_l1_alloc_cluster_local(o_fa_size*num_heads, alignof(__fp16));
     void **concat_inputs = (void **)snrt_l1_alloc_cluster_local(num_heads * sizeof(void *), alignof(void *));
     concat_inputs[snrt_cluster_idx()] = (void *)O_fa; // Each cluster will write its t_r-th O tile to the list. This is just a pointer!
 
@@ -319,7 +320,7 @@ static inline void mha_flashattention_2_fp16(mha_flashattention_2_layer_t layer)
             .inputs = concat_inputs,
             .inputs_from_l1 = 1, // Use TCDM for inputs
             .weights = W_O,
-            .concat_output = Concat_O_fa,
+            .concat_output = null_pointer,
             .linear_output = (__fp16 *)O_l3 + t_r * B_r * d,
             .dtype = dtype,
             .gemm_implementation = gemm_implementation
