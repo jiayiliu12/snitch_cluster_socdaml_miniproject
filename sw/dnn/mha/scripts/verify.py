@@ -5,13 +5,19 @@
 #
 # Luca Colagrande <colluca@iis.ee.ethz.ch>
 
+
 import numpy as np
 import sys
+import os
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../..')))
+
 from datagen import exact_flexfloat_golden_model
 import pyflexfloat as ff
 
 from snitch.util.sim.verif_utils import Verifier
 from snitch.util.sim.data_utils import ctype_from_precision_t, ff_desc_from_precision_t
+from sw.blas.gemm.scripts.datagen import GemmDataGen
 
 
 class MhaVerifier(Verifier):
@@ -84,7 +90,10 @@ class MhaVerifier(Verifier):
         W_O_f = np.array([w.__float__() for w in W_O])
         W_O = ff.array(W_O_f.reshape(self.d*self.num_heads, self.d), ff_desc_from_precision_t(self.prec))
 
-        O = np.concatenate(O, axis=1) @ W_O
+        O_concat = np.concatenate(O, axis=1)
+        gemm_obj = GemmDataGen()
+        O = gemm_obj.exact_golden_model(1, O_concat, W_O, 0, np.zeros((self.L, self.d), dtype=ctype_from_precision_t(self.prec)))
+        # O = np.concatenate(O, axis=1) @ W_O
 
         return O.flatten()
 
