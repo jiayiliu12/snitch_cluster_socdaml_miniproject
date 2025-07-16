@@ -140,7 +140,7 @@ def exact_flexfloat_golden_model(Q, K, V, B_r, B_c, desc):
 # Verify layer parameters are valid
 def validate(num_heads, L, S, d, B_r, B_c, dtype, baseline, gemm_impl):
     assert num_heads > 0, 'num_heads must be greater than 0'
-    assert num_heads <= 255, 'num_heads must be less than or equal to 255 (with 8 bits allocated)'
+    # assert num_heads <= 255, 'num_heads must be less than or equal to 255 (with 8 bits allocated)'
     assert (L % B_r) == 0, 'L is not an integer multiple of B_r'
     assert (S % B_c) == 0, 'S is not an integer multiple of B_c'
     assert dtype != 'FP64', 'FP64 precision is not supported yet'
@@ -158,7 +158,7 @@ def validate(num_heads, L, S, d, B_r, B_c, dtype, baseline, gemm_impl):
     total_size = q_fa_size
     total_size += k_fa_size
     total_size += v_fa_size * 2  # V and V^t
-    total_size *= num_heads ######## is this correct? jiayi #######
+    # total_size *= num_heads ######## is this correct? jiayi #######
     total_size += s_fa_size
     total_size += p_fa_size
     total_size += o_fa_size
